@@ -1,5 +1,10 @@
-import importlib
 import os
+
+# Pick the GPU backend when available while retaining CPU as a fallback. This
+# must be set before importing Embodied, which imports JAX.
+os.environ.setdefault('JAX_PLATFORMS', 'cuda,cpu')
+
+import importlib
 import pathlib
 import sys
 from functools import partial as bind
@@ -16,6 +21,13 @@ import portal
 import ruamel.yaml as yaml
 
 
+class ResilientJSONLOutput(elements.logger.JSONLOutput):
+
+  def _write(self, summaries):
+    self._filename.parent.mkdir()
+    return super()._write(summaries)
+
+
 def main(argv=None):
   from .agent import Agent
   [elements.print(line) for line in Agent.banner]
@@ -27,8 +39,9 @@ def main(argv=None):
   for name in parsed.configs:
     config = config.update(configs[name])
   config = elements.Flags(config).parse(other)
-  config = config.update(logdir=(
-      config.logdir.format(timestamp=elements.timestamp())))
+  logdir = config.logdir.format(timestamp=elements.timestamp())
+  logdir = os.path.expandvars(os.path.expanduser(logdir))
+  config = config.update(logdir=logdir)
 
   if 'JOB_COMPLETION_INDEX' in os.environ:
     config = config.update(replica=int(os.environ['JOB_COMPLETION_INDEX']))
@@ -157,8 +170,8 @@ def make_logger(config):
   outputs.append(elements.logger.TerminalOutput(config.logger.filter, 'Agent'))
   for output in config.logger.outputs:
     if output == 'jsonl':
-      outputs.append(elements.logger.JSONLOutput(logdir, 'metrics.jsonl'))
-      outputs.append(elements.logger.JSONLOutput(
+      outputs.append(ResilientJSONLOutput(logdir, 'metrics.jsonl'))
+      outputs.append(ResilientJSONLOutput(
           logdir, 'scores.jsonl', 'episode/score'))
     elif output == 'tensorboard':
       outputs.append(elements.logger.TensorBoardOutput(
@@ -229,6 +242,8 @@ def make_env(config, index, **overrides):
       'langroom': 'embodied.envs.langroom:LangRoom',
       'procgen': 'embodied.envs.procgen:ProcGen',
       'bsuite': 'embodied.envs.bsuite:BSuite',
+      'gymnasium': 'embodied.envs.from_gymnasium:FromGymnasium',
+      'minigrid': 'embodied.envs.minigrid:Minigrid',
       'memmaze': lambda task, **kw: from_gym.FromGym(
           f'MemoryMaze-{task}-v0', **kw),
   }[suite]
@@ -260,10 +275,14 @@ def wrap_env(env, config):
 
 def make_stream(config, replay, mode):
   fn = bind(replay.sample, config.batch_size, mode)
+  length = (
+      config.batch_length if mode == 'train' else
+      min(config.report_length, config.batch_length) if mode == 'report' else
+      config.report_length)
   stream = embodied.streams.Stateless(fn)
   stream = embodied.streams.Consec(
       stream,
-      length=config.batch_length if mode == 'train' else config.report_length,
+      length=length,
       consec=config.consec_train if mode == 'train' else config.consec_report,
       prefix=config.replay_context,
       strict=(mode == 'train'),

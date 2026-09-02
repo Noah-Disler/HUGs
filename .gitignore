@@ -1,7 +1,15 @@
 .pytest_cache
+.mypy_cache/
+.ruff_cache/
+.DS_Store
 dist
 __pycache__/
 *.py[cod]
 *.egg-info
 MUJOCO_LOG.TXT
+venv/
+.venv/
+logdir/
+slurm_logs/
+wandb/
 ;

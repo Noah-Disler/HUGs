@@ -7,9 +7,11 @@ einops
 elements>=3.19.1
 google-resumable-media>=2.7.2
 granular>=0.20.3
+gymnasium
 ipdb
 jax[cuda12]==0.4.33
 jaxtyping
+minigrid
 ninjax>=3.5.1
 numpy<2  # DMLab: <2, MineRLv1.0: <1.24
 nvidia-cuda-nvcc-cu12<=12.2

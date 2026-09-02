@@ -77,6 +77,15 @@ python dreamerv3/main.py \
 To reproduce results, train on the desired task using the corresponding config,
 such as `--configs atari --task atari_pong`.
 
+MiniGrid is available through its included preset:
+
+```sh
+python dreamerv3/main.py --configs minigrid size1m
+```
+
+Override `--task minigrid_Empty-8x8-v0` with another registered MiniGrid task
+when needed.
+
 View results:
 
 ```sh

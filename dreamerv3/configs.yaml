@@ -35,6 +35,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0, logs: False, length: 36000}
     dmc: {size: [64, 64], repeat: 1, proprio: True, image: True, camera: -1}
     loconav: {size: [64, 64], repeat: 1, camera: -1}
+    minigrid: {size: [64, 64], fully_observable: False, hide_mission: True, max_episode_steps: 500, use_seed: True}
 
   replay:
     size: 5e6
@@ -77,9 +78,11 @@ defaults:
     mock_devices: 0
     prealloc: True
     jit: True
+    deterministic: True
     debug: False
     expect_devices: 0
     enable_policy: True
+    precompile: True
     coordinator_address: ''
 
   agent:
@@ -194,6 +197,13 @@ loconav:
   task: loconav_ant_maze_m
   env.loconav.repeat: 1
   run.train_ratio: 256
+
+minigrid:
+  task: minigrid_Empty-8x8-v0
+  batch_size: 12
+  batch_length: 20
+  report_length: 20
+  run: {steps: 1e6, train_ratio: 64, log_every: 300, save_every: 1e4}
 
 multicpu:
   batch_size: 12
