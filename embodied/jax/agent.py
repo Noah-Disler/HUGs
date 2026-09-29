@@ -149,6 +149,10 @@ class Agent(embodied.Agent):
         nj.pure(self.model.report), self.train_mesh,
         (tp, tm, ts, ts), (ts, tm), ar,
         first_outnums=(1,), **shared_kwargs)
+    self._latents = transform.apply(
+        nj.pure(self.model.latents), self.train_mesh,
+        (tp, tm, ts, ts), (ts, ts), ar,
+        first_outnums=(1,), **shared_kwargs)
     self._policy = transform.apply(
         nj.pure(self.model.policy), self.policy_mesh,
         (pp, pm, ps, ps), (ps, ps, ps), ar,
@@ -322,6 +326,13 @@ class Agent(embodied.Agent):
       mets = self._take_outs(internal.fetch_async(mets))
     mets['params/summary'] = self._summary()
     return carry, mets
+
+  def latents(self, carry, data):
+    seed = data.pop('seed')
+    with self.train_lock:
+      carry, outs = self._latents(self.params, seed, carry, data)
+      outs = self._take_outs(internal.fetch_async(outs))
+    return carry, outs
 
   def stream(self, st):
     def fn(data):

@@ -309,6 +309,47 @@ class Agent(embodied.jax.Agent):
     carry = (*new_carry, {k: data[k][:, -1] for k in self.act_space})
     return carry, metrics
 
+  # Take frames and actions. Squeeze each frame to a vector.
+  # Walk through time updating a memory, wiping it at episode starts, and at each step combine memory + frame into a latent.
+  # Record all of it.
+  # Hand back the recording, plus a bookmark.
+  #
+  # HUGs: this is an OFFLINE, INFERENCE-ONLY tap. It exists so stored
+  # experience can be re-encoded through a frozen world model, giving the
+  # trajectory autoencoder a fixed, reproducible dataset to train on.
+  #
+  # TODO(hugs): when the trajectory model goes online (auxiliary actor loss
+  # during training), do NOT call this as an extra forward pass. loss()
+  # already computes exactly these latents as `repfeat` and then discards
+  # them, so calling latents() alongside train() would double world-model
+  # compute every step. Surface repfeat out of loss()/train() instead.
+  # Two decisions deferred to that point:
+  #   1. Stop-gradient. The trajectory objective should almost certainly not
+  #      backprop into the RSSM, or the goal loss starts reshaping the world
+  #      model itself. Wrap with sg() unless deliberately choosing otherwise.
+  #   2. Non-stationarity. Online the encoder keeps changing, so embeddings
+  #      drift and the frozen-encoder assumption behind the offline dataset
+  #      no longer holds.
+  # The train_lock in the wrapper's public latents() is already correct for
+  # online use; nothing needs changing there.
+  def latents(self, carry, data):
+    enc_carry, dyn_carry, dec_carry, prevact = carry
+    obs = {k: data[k] for k in self.obs_space}
+    prepend = lambda x, y: jnp.concatenate([x[:, None], y[:, :-1]], 1)
+    prevact = {k: prepend(prevact[k], data[k]) for k in self.act_space}
+    reset = obs['is_first']
+    enc_carry, _, tokens = self.enc(enc_carry, obs, reset, False)
+    dyn_carry, _, feat = self.dyn.observe(dyn_carry, tokens, prevact, reset, False)
+    outs = {
+      'state': self.feat2tensor(feat),
+      'deter': feat['deter'],
+      'stoch': feat['stoch'],
+      'logit': feat['logit'],
+      'is_first': obs['is_first'],
+    }
+    carry = (enc_carry, dyn_carry, dec_carry, {k: data[k][:, -1] for k in self.act_space})
+    return carry, outs
+
   def _apply_replay_context(self, carry, data):
     (enc_carry, dyn_carry, dec_carry, prevact) = carry
     carry = (enc_carry, dyn_carry, dec_carry)

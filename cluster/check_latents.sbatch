@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=hugs_train
+#SBATCH --job-name=hugs_check
 #SBATCH --exclude=mscluster48,mscluster44,mscluster51,mscluster65,mscluster68,mscluster75,mscluster76,mscluster50
 #SBATCH --partition=bigbatch
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --time=2-12:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --time=00:30:00
 #SBATCH --output=/datasets/%u/HUGs/slurm_logs/%x-%j.out
 #SBATCH --error=/datasets/%u/HUGs/slurm_logs/%x-%j.err
+
+# Validates the latents() hook (dreamerv3/agent.py + embodied/jax/agent.py)
+# against the dyn/deter values Dreamer stored in the replay chunks.
+#
+# TODO: the environment setup below is duplicated from train_bigbatch.sbatch.
+# Once this runs clean, factor it into cluster/run_python.sh and make both
+# files thin wrappers, following the view_results.sbatch / .sh pattern.
 
 set -Eeuo pipefail
 
 PROJECT_DIR="/home-mscluster/${USER}/projects/HUGs"
-DATA_DIR="/datasets/${USER}/HUGs"
 ENV_DIR="$PROJECT_DIR/venv"
 ANACONDA_MODULE="anaconda/anaconda-2025-12-2"
 export APPTAINER_BINDPATH="/datasets${APPTAINER_BINDPATH:+,$APPTAINER_BINDPATH}"
@@ -62,10 +68,11 @@ export APPTAINERENV_OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 
 echo "HOST=$(hostname)"
 echo "JOB_ID=${SLURM_JOB_ID:-unset}"
-echo "ENV_DIR=$ENV_DIR"
 echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi
 
+# Fail fast and legibly if this node's GPU is visible to nvidia-smi but not
+# usable by JAX. Exit 42 means "resubmit, or add this node to --exclude".
 "${ENV_PYTHON[@]}" - <<'PY'
 import sys
 
@@ -76,22 +83,12 @@ try:
   gpu = jax.devices("gpu")
 except Exception as exc:
   print("CUDA preflight failed on this bigbatch node.")
-  print("Resubmit the job or update the exclusion list.")
   print(f"{type(exc).__name__}: {exc}")
   sys.exit(42)
 if not gpu:
   print("CUDA preflight found no GPU devices on this bigbatch node.")
   sys.exit(42)
-print("Default devices:", jax.devices())
 print("GPU devices:", gpu)
 PY
 
-if (($#)); then
-  TRAIN_ARGS=("$@")
-else
-  TRAIN_ARGS=(--configs crafter size1m --script train_eval)
-fi
-
-"${ENV_PYTHON[@]}" -u dreamerv3/main.py \
-  --logdir "$DATA_DIR/logdir/{timestamp}" \
-  "${TRAIN_ARGS[@]}"
+"${ENV_PYTHON[@]}" -u tm/trajectory/scripts/check_latents.py
