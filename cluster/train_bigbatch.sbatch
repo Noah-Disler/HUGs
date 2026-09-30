@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=hugs_train
-#SBATCH --exclude=mscluster48,mscluster44,mscluster51,mscluster65,mscluster68,mscluster75,mscluster76,mscluster50
+#SBATCH --exclude=mscluster48,mscluster44,mscluster51,mscluster65,mscluster68,mscluster75,mscluster76,mscluster50,mscluster45
 #SBATCH --partition=bigbatch
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

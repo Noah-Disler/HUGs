@@ -12,4 +12,3 @@ venv/
 logdir/
 slurm_logs/
 wandb/
-;

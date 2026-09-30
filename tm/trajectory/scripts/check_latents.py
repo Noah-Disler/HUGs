@@ -7,6 +7,26 @@ should reproduce them closely.
 Runs twice: once correctly aligned, once with actions deliberately shifted by
 one step. The correct run must be clearly better, otherwise the comparison is
 not sensitive enough to detect an alignment bug and cannot vouch for anything.
+
+PIPELINE POSITION
+  Validation only -- writes nothing. Run after any change to the latents()
+  hook in dreamerv3/agent.py or embodied/jax/agent.py, before trusting
+  encode_states.py output. Needs a GPU and the frozen checkpoint.
+  Submit with cluster/check_latents.sbatch.
+
+WHY IT EXISTS
+  A one-step action misalignment is silent: shapes stay correct, nothing
+  raises, and the latents look entirely plausible. The dyn/deter values that
+  Dreamer recorded during training are the only ground truth available.
+
+RESULT, 2026-09-29, frozen DoorKey-8x8 checkpoint
+  aligned     mean|err| 0.0176 = 0.25x a real step-to-step change
+  misaligned  mean|err| 0.0815 = 1.18x, i.e. worse than a genuine difference
+  4.6x separation, so the test demonstrably detects what it guards against.
+  t=0 is identical in both runs (0.00308) because the action is masked at a
+  reset -- and it matches the 0.0025 spread between stored reset states, so
+  the one exactly-checkable value is reproduced to the data's own noise
+  floor. Residual error is sampling: stoch agreement is 0.709.
 """
 
 # imports and paths

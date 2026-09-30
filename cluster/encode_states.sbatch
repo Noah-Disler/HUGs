@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=hugs_check
+#SBATCH --job-name=hugs_encode
 #SBATCH --exclude=mscluster48,mscluster44,mscluster51,mscluster65,mscluster68,mscluster75,mscluster76,mscluster50,mscluster45
 #SBATCH --partition=bigbatch
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --time=00:30:00
+#SBATCH --time=01:00:00
 #SBATCH --output=/datasets/%u/HUGs/slurm_logs/%x-%j.out
 #SBATCH --error=/datasets/%u/HUGs/slurm_logs/%x-%j.err
 
-# Validates the latents() hook (dreamerv3/agent.py + embodied/jax/agent.py)
-# against the dyn/deter values Dreamer stored in the replay chunks.
+# Re-encodes the saved replay through the frozen world model, writing model
+# states for the trajectory autoencoder. Needs a GPU and the checkpoint.
 #
-# TODO: the environment setup below is duplicated from train_bigbatch.sbatch.
-# Once this runs clean, factor it into cluster/run_python.sh and make both
-# files thin wrappers, following the view_results.sbatch / .sh pattern.
+# TODO: environment setup duplicated from train_bigbatch.sbatch and
+# check_latents.sbatch -- three copies now. Factor into cluster/run_python.sh
+# following the view_results.sbatch / .sh pattern.
 
 set -Eeuo pipefail
 
@@ -68,11 +68,8 @@ export APPTAINERENV_OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-1}"
 
 echo "HOST=$(hostname)"
 echo "JOB_ID=${SLURM_JOB_ID:-unset}"
-echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi
 
-# Fail fast and legibly if this node's GPU is visible to nvidia-smi but not
-# usable by JAX. Exit 42 means "resubmit, or add this node to --exclude".
 "${ENV_PYTHON[@]}" - <<'PY'
 import sys
 
@@ -91,4 +88,4 @@ if not gpu:
 print("GPU devices:", gpu)
 PY
 
-"${ENV_PYTHON[@]}" -u tm/trajectory/scripts/check_latents.py
+"${ENV_PYTHON[@]}" -u tm/trajectory/scripts/encode_states.py
